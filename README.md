@@ -33,9 +33,29 @@ uvx redash-mcp
 | `REDASH_API_KEY` | Yes | Your Redash API key |
 | `REDASH_TIMEOUT` | No | Request timeout in seconds (default: 30) |
 
+### Claude Code
+
+Add to `~/.claude.json` (user-level config):
+
+```json
+{
+  "mcpServers": {
+    "redash": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["redash-mcp"],
+      "env": {
+        "REDASH_URL": "https://your-redash-instance.com",
+        "REDASH_API_KEY": "your-api-key"
+      }
+    }
+  }
+}
+```
+
 ### Claude Desktop
 
-Add to `~/.claude/claude_desktop_config.json`:
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 ```json
 {
