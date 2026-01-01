@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "redash-mcp"
+version = "0.1.0"
+description = "Model Context Protocol (MCP) server for Redash - manage queries, dashboards, and visualizations"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    { name = "Emergent", email = "dev@emergent.sh" }
+]
+keywords = ["redash", "mcp", "model-context-protocol", "claude", "ai", "dashboard", "visualization"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "requests>=2.28.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/emergentsh/redash-mcp"
+Repository = "https://github.com/emergentsh/redash-mcp"
+Issues = "https://github.com/emergentsh/redash-mcp/issues"
+
+[project.scripts]
+redash-mcp = "redash_mcp:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/redash_mcp"]
