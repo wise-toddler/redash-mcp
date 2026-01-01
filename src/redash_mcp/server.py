@@ -18,6 +18,7 @@ TOOLS = [
                 "query": {"type": "string", "description": "SQL query (for create/update/adhoc)"},
                 "data_source_id": {"type": "integer", "description": "Data source ID"},
                 "page": {"type": "integer", "default": 1},
+                "page_size": {"type": "integer", "default": 10, "description": "Results per page (default 10, max 250)"},
             },
             "required": ["action"]
         }
@@ -32,6 +33,7 @@ TOOLS = [
                 "id": {"type": "integer", "description": "Dashboard ID"},
                 "name": {"type": "string", "description": "Dashboard name (for create)"},
                 "page": {"type": "integer", "default": 1},
+                "page_size": {"type": "integer", "default": 10, "description": "Results per page (default 10, max 250)"},
             },
             "required": ["action"]
         }
@@ -76,12 +78,22 @@ TOOLS = [
 ]
 
 
+def _condense_queries(data: dict) -> dict:
+    """Return condensed query list with essential fields only."""
+    if "results" in data:
+        data["results"] = [
+            {"id": q["id"], "name": q["name"], "data_source_id": q.get("data_source_id"), "created_at": q.get("created_at")}
+            for q in data["results"]
+        ]
+    return data
+
+
 def handle_query(args: dict) -> dict:
     action = args["action"]
     if action == "list":
-        return api.list_queries(args.get("page", 1), 25)
+        return _condense_queries(api.list_queries(args.get("page", 1), args.get("page_size", 10)))
     if action == "search":
-        return api.search_queries(args["q"])
+        return _condense_queries(api.search_queries(args["q"]))
     if action == "get":
         return api.get_query(args["id"])
     if action == "create":
@@ -100,10 +112,20 @@ def handle_query(args: dict) -> dict:
     return {"error": f"Unknown action: {action}"}
 
 
+def _condense_dashboards(data: dict) -> dict:
+    """Return condensed dashboard list with essential fields only."""
+    if "results" in data:
+        data["results"] = [
+            {"id": d["id"], "name": d["name"], "slug": d.get("slug"), "created_at": d.get("created_at")}
+            for d in data["results"]
+        ]
+    return data
+
+
 def handle_dashboard(args: dict) -> dict:
     action = args["action"]
     if action == "list":
-        return api.list_dashboards(args.get("page", 1), 25)
+        return _condense_dashboards(api.list_dashboards(args.get("page", 1), args.get("page_size", 10)))
     if action == "get":
         return api.get_dashboard(args["id"])
     if action == "create":
