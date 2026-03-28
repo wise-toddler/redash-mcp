@@ -16,8 +16,9 @@ TOOLS = [
                 "id": {"type": "integer", "description": "Query ID (for get/update/archive/delete/run/export)"},
                 "q": {"type": "string", "description": "Search term (for search)"},
                 "name": {"type": "string", "description": "Query name (for create)"},
-                "query": {"type": "string", "description": "SQL query (for create/update/adhoc)"},
+                "query": {"type": "string", "description": "SQL or MongoDB JSON query (for create/update/adhoc). For MongoDB, use JSON format e.g. {\"collection\": \"my_col\", \"query\": {\"field\": \"value\"}, \"limit\": 50, \"sort\": [{\"name\": \"field\", \"direction\": -1}]}"},
                 "data_source_id": {"type": "integer", "description": "Data source ID"},
+                "max_rows": {"type": "integer", "default": 200, "description": "Max rows to return for adhoc queries (default 200, prevents huge responses)"},
                 "page": {"type": "integer", "default": 1},
                 "page_size": {"type": "integer", "default": 10, "description": "Results per page (default 10, max 250)"},
                 "path": {"type": "string", "description": "File path to export results (for export). Supports .csv and .json"},
@@ -134,7 +135,7 @@ def handle_query(args: dict) -> dict:
     if action == "run":
         return api.run_query(args["id"], args.get("timeout", 60))
     if action == "adhoc":
-        return api.execute_adhoc(args["query"], args["data_source_id"])
+        return api.execute_adhoc(args["query"], args["data_source_id"], max_rows=args.get("max_rows", 200))
     if action == "schedule":
         schedule = {"interval": args["interval"]}
         if "until" in args:

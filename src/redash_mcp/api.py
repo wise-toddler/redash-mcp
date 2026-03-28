@@ -1,4 +1,5 @@
 """Redash API functions."""
+import json
 import time
 import requests
 from .config import URL, HEADERS, TIMEOUT
@@ -39,8 +40,10 @@ def get_query(query_id: int) -> dict:
     return _get(f"/api/queries/{query_id}")
 
 
-def create_query(name: str, query: str, data_source_id: int, description: str = "") -> dict:
+def create_query(name: str, query, data_source_id: int, description: str = "") -> dict:
     """Create a new query."""
+    if isinstance(query, dict):
+        query = json.dumps(query)
     return _post("/api/queries", {"name": name, "query": query, "data_source_id": data_source_id, "description": description})
 
 
@@ -59,9 +62,62 @@ def delete_query(query_id: int) -> dict | None:
     return _delete(f"/api/queries/{query_id}")
 
 
-def execute_adhoc(query: str, data_source_id: int) -> dict:
+def _normalize_query(query) -> str:
+    """Ensure query is a string. Dicts are serialized to JSON (for MongoDB support)."""
+    if isinstance(query, dict):
+        return json.dumps(query)
+    return query
+
+
+def _post_streamed(endpoint: str, data: dict, max_bytes: int = 10 * 1024 * 1024) -> dict:
+    """POST with streamed response, capped at max_bytes to avoid OOM on large results."""
+    r = requests.post(f"{URL}{endpoint}", headers=HEADERS, json=data, timeout=TIMEOUT, stream=True)
+    raw = b""
+    for chunk in r.iter_content(chunk_size=1024 * 64):
+        raw += chunk
+        if len(raw) > max_bytes:
+            break
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return {"error": "Response too large (>10MB). Add filters or limit to your query to reduce result size."}
+
+
+def _truncate_rows(data: dict, max_rows: int) -> dict:
+    """Truncate query result rows if they exceed max_rows."""
+    rows = data.get("query_result", {}).get("data", {}).get("rows", [])
+    if len(rows) > max_rows:
+        data["query_result"]["data"]["rows"] = rows[:max_rows]
+        data["query_result"]["data"]["truncated"] = True
+        data["query_result"]["data"]["total_rows"] = len(rows)
+        data["query_result"]["data"]["returned_rows"] = max_rows
+    return data
+
+
+def _wait_for_job(data: dict, timeout: int) -> dict:
+    """If response contains a job, poll until complete. Otherwise return as-is."""
+    job_id = data.get("job", {}).get("id")
+    if not job_id:
+        return data
+    for _ in range(timeout):
+        time.sleep(1)
+        status = get_job(job_id)
+        job_status = status.get("job", {}).get("status")
+        if job_status in [3, 4]:  # 3=done, 4=failed
+            result_id = status.get("job", {}).get("query_result_id")
+            return get_result(result_id) if result_id else status
+    return {"error": "Query execution timed out"}
+
+
+def execute_adhoc(query, data_source_id: int, max_rows: int = 200, timeout: int = 60) -> dict:
     """Execute ad-hoc query without saving."""
-    return _post("/api/query_results", {"query": query, "data_source_id": data_source_id})
+    query = _normalize_query(query)
+    data = _post_streamed("/api/query_results", {"query": query, "data_source_id": data_source_id})
+    if "error" in data:
+        return data
+    if "job" in data:
+        data = _wait_for_job(data, timeout)
+    return _truncate_rows(data, max_rows)
 
 
 # Dashboards
