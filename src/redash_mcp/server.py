@@ -18,6 +18,7 @@ TOOLS = [
                 "name": {"type": "string", "description": "Query name (for create)"},
                 "query": {"type": "string", "description": "SQL or MongoDB JSON query (for create/update/adhoc). For MongoDB, use JSON format e.g. {\"collection\": \"my_col\", \"query\": {\"field\": \"value\"}, \"limit\": 50, \"sort\": [{\"name\": \"field\", \"direction\": -1}]}"},
                 "data_source_id": {"type": "integer", "description": "Data source ID"},
+                "parameters": {"type": "object", "description": "Values for {{param}} placeholders, e.g. {\"bucket_hours\": 6}. Sets defaults on create/update, passes values on run"},
                 "max_rows": {"type": "integer", "default": 200, "description": "Max rows to return for adhoc queries (default 200, prevents huge responses)"},
                 "page": {"type": "integer", "default": 1},
                 "page_size": {"type": "integer", "default": 10, "description": "Results per page (default 10, max 250)"},
@@ -124,16 +125,19 @@ def handle_query(args: dict) -> dict:
     if action == "get":
         return api.get_query(args["id"])
     if action == "create":
-        return api.create_query(args["name"], args["query"], args["data_source_id"], args.get("description", ""))
+        return api.create_query(args["name"], args["query"], args["data_source_id"], args.get("description", ""), args.get("parameters"))
     if action == "update":
-        return api.update_query(args["id"], **{k: v for k, v in args.items() if k not in ["action", "id"]})
+        updates = {k: v for k, v in args.items() if k not in ["action", "id", "parameters"]}
+        if args.get("parameters"):
+            updates["options"] = api.param_options(args["parameters"])
+        return api.update_query(args["id"], **updates)
     if action == "archive":
         return api.archive_query(args["id"])
     if action == "delete":
         api.delete_query(args["id"])
         return {"success": True}
     if action == "run":
-        return api.run_query(args["id"], args.get("timeout", 60))
+        return api.run_query(args["id"], args.get("timeout", 60), args.get("parameters"))
     if action == "adhoc":
         return api.execute_adhoc(args["query"], args["data_source_id"], max_rows=args.get("max_rows", 200))
     if action == "schedule":
