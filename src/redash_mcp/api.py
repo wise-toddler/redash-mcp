@@ -40,11 +40,22 @@ def get_query(query_id: int) -> dict:
     return _get(f"/api/queries/{query_id}")
 
 
-def create_query(name: str, query, data_source_id: int, description: str = "") -> dict:
+def param_options(parameters: dict) -> dict:
+    """Build options.parameters from a {name: default_value} dict."""
+    return {"parameters": [
+        {"name": k, "title": k, "type": "number" if isinstance(v, (int, float)) else "text", "value": v}
+        for k, v in parameters.items()
+    ]}
+
+
+def create_query(name: str, query, data_source_id: int, description: str = "", parameters: dict = None) -> dict:
     """Create a new query."""
     if isinstance(query, dict):
         query = json.dumps(query)
-    return _post("/api/queries", {"name": name, "query": query, "data_source_id": data_source_id, "description": description})
+    data = {"name": name, "query": query, "data_source_id": data_source_id, "description": description}
+    if parameters:
+        data["options"] = param_options(parameters)
+    return _post("/api/queries", data)
 
 
 def update_query(query_id: int, **kwargs) -> dict:
@@ -201,9 +212,10 @@ def delete_alert(alert_id: int) -> dict | None:
 
 
 # Query Execution
-def execute_query(query_id: int) -> dict:
+def execute_query(query_id: int, parameters: dict = None) -> dict:
     """Execute query and return job info."""
-    return _post(f"/api/queries/{query_id}/results")
+    body = {"parameters": parameters, "max_age": 0} if parameters else {}
+    return _post(f"/api/queries/{query_id}/results", body)
 
 
 def get_job(job_id: str) -> dict:
@@ -216,9 +228,13 @@ def get_result(result_id: int) -> dict:
     return _get(f"/api/query_results/{result_id}")
 
 
-def run_query(query_id: int, timeout: int = 60) -> dict:
+def run_query(query_id: int, timeout: int = 60, parameters: dict = None) -> dict:
     """Execute query and wait for result."""
-    job = execute_query(query_id)
+    if not parameters:
+        # Redash never applies saved defaults server-side, so send them ourselves
+        saved = get_query(query_id).get("options", {}).get("parameters", [])
+        parameters = {p["name"]: p["value"] for p in saved if p.get("value") is not None}
+    job = execute_query(query_id, parameters)
     job_id = job.get("job", {}).get("id")
     if not job_id:
         return job
